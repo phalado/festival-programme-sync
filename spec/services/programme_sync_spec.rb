@@ -70,6 +70,31 @@ RSpec.describe ProgrammeSync do
       end
     end
 
+    context "when the API fails after a page was synced" do
+      before do
+        allow(api_client)
+          .to receive(:fetch_screenings)
+          .with(page: 2)
+          .and_raise(Faraday::ServerError, "Upstream unavailable")
+
+        sync.call(page: 1)
+      end
+
+      it "propagates the API failure" do
+        expect { sync.call(page: 2) }.to raise_error(Faraday::ServerError)
+      end
+
+      it "keeps records committed by the previous page" do
+        begin
+          sync.call(page: 2)
+        rescue Faraday::ServerError
+          nil
+        end
+
+        expect(Screening.exists?(external_id: "SCR-0001")).to be(true)
+      end
+    end
+
     context "when the same page is synced again" do
       before { sync.call }
 
