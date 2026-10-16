@@ -10,12 +10,12 @@ RSpec.describe "Sidekiq schedule" do
     expect(programme_sync.fetch("cron")).to eq("0 * * * *")
   end
 
-  it "starts the page sync job" do
-    expect(programme_sync.fetch("class")).to eq("ProgrammeSyncPageJob")
+  it "starts the sync coordinator job" do
+    expect(programme_sync.fetch("class")).to eq("ProgrammeSyncJob")
   end
 
-  it "starts with the first page" do
-    expect(programme_sync.fetch("args")).to eq([ 1 ])
+  it "does not require arguments" do
+    expect(programme_sync.fetch("args")).to eq([])
   end
 
   it "uses the default queue" do

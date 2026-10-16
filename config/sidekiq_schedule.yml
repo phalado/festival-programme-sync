@@ -1,6 +1,5 @@
 programme_sync:
   cron: "0 * * * *"
-  class: "ProgrammeSyncPageJob"
-  args:
-    - 1
+  class: "ProgrammeSyncJob"
+  args: []
   queue: "default"
