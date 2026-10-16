@@ -106,6 +106,9 @@ structured failures, allowing later records on the same page to continue. The
 HTTP client uses a two-second connection timeout and a ten-second response
 timeout, which accommodates the known six-second slow response. Connection,
 timeout and server failures retry up to five times with polynomial backoff.
+Request-level integration tests exercise the mock API's complete `generation=1`
+dataset, its `generation=2` updates and its `fail_after=8` partial-failure mode,
+including preservation of records committed by earlier successful pages.
 
 `sidekiq-cron` starts `ProgrammeSyncJob` at the beginning of every hour. This
 coordinator creates a `SyncRun` and enqueues page 1; the first page discovers the
