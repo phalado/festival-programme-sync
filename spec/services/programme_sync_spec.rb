@@ -70,6 +70,22 @@ RSpec.describe ProgrammeSync do
       end
     end
 
+    context "when the same page is synced again" do
+      before { sync.call }
+
+      it "does not duplicate the screening" do
+        expect { sync.call }.not_to change(Screening, :count)
+      end
+
+      it "does not duplicate the film" do
+        expect { sync.call }.not_to change(Film, :count)
+      end
+
+      it "does not duplicate the venue" do
+        expect { sync.call }.not_to change(Venue, :count)
+      end
+    end
+
     context "after syncing" do
       before { sync.call }
 
