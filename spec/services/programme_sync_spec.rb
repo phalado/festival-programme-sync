@@ -2,9 +2,11 @@ require "rails_helper"
 
 RSpec.describe ProgrammeSync do
   describe "#call" do
-    it "imports a screening with its film and venue" do
-      api_client = double("FestivalApiClient")
-      response = {
+    subject(:sync) { described_class.new(api_client: api_client) }
+
+    let(:api_client) { double("FestivalApiClient") }
+    let(:api_response) do
+      {
         "page" => 1,
         "total_pages" => 1,
         "screenings" => [
@@ -28,34 +30,52 @@ RSpec.describe ProgrammeSync do
           }
         ]
       }
+    end
 
-      allow(api_client).to receive(:fetch_screenings).with(page: 1).and_return(response)
+    before { allow(api_client).to receive(:fetch_screenings).with(page: 1).and_return(api_response) }
 
-      expect {
-        described_class.new(api_client: api_client).call
-      }.to change(Screening, :count).by(1)
-        .and change(Film, :count).by(1)
-        .and change(Venue, :count).by(1)
+    it "creates the screening" do
+      expect { sync.call }.to change(Screening, :count).by(1)
+    end
 
-      screening = Screening.find_by!(external_id: "SCR-0001")
+    it "creates the film" do
+      expect { sync.call }.to change(Film, :count).by(1)
+    end
 
+    it "creates the venue" do
+      expect { sync.call }.to change(Venue, :count).by(1)
+    end
+
+    context "after syncing" do
+      before { sync.call }
+
+      let(:screening) { Screening.find_by!(external_id: "SCR-0001") }
+
+      it "imports the screening attributes" do
       expect(screening).to have_attributes(
         starts_at: Time.zone.parse("2027-03-06T16:00:00Z"),
         status: "scheduled"
       )
-      expect(screening.film).to have_attributes(
-        external_id: "FILM-001",
-        title: "The Silent Orchard",
-        synopsis: "A beekeeper's last summer in the hills.",
-        runtime: 118,
-        year: 2024
-      )
-      expect(screening.venue).to have_attributes(
-        external_id: "VEN-01",
-        name: "Grand Cinema",
-        address: "12 Main Street",
-        capacity: 320
-      )
+      end
+
+      it "imports the film attributes" do
+        expect(screening.film).to have_attributes(
+          external_id: "FILM-001",
+          title: "The Silent Orchard",
+          synopsis: "A beekeeper's last summer in the hills.",
+          runtime: 118,
+          year: 2024
+        )
+      end
+
+      it "imports the venue attributes" do
+        expect(screening.venue).to have_attributes(
+          external_id: "VEN-01",
+          name: "Grand Cinema",
+          address: "12 Main Street",
+          capacity: 320
+        )
+      end
     end
   end
 end
