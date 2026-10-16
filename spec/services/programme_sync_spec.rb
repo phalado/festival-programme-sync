@@ -66,7 +66,7 @@ RSpec.describe ProgrammeSync do
       end
 
       it "returns the total number of pages" do
-        expect(sync.call(page: 2)).to eq(3)
+        expect(sync.call(page: 2).total_pages).to eq(3)
       end
     end
 
@@ -92,6 +92,41 @@ RSpec.describe ProgrammeSync do
         end
 
         expect(Screening.exists?(external_id: "SCR-0001")).to be(true)
+      end
+    end
+
+    context "when one upstream record is invalid" do
+      before do
+        invalid_screening = api_response.fetch("screenings").first.deep_dup
+        invalid_screening["id"] = "SCR-0002"
+        invalid_screening.delete("status")
+
+        later_screening = api_response.fetch("screenings").first.deep_dup
+        later_screening["id"] = "SCR-0003"
+
+        api_response.fetch("screenings").push(invalid_screening, later_screening)
+      end
+
+      let(:result) { sync.call }
+
+      it "does not persist the invalid screening" do
+        result
+
+        expect(Screening.exists?(external_id: "SCR-0002")).to be(false)
+      end
+
+      it "continues processing later screenings" do
+        result
+
+        expect(Screening.exists?(external_id: "SCR-0003")).to be(true)
+      end
+
+      it "reports the invalid screening" do
+        expect(result.failures.map(&:external_id)).to eq([ "SCR-0002" ])
+      end
+
+      it "reports the validation error" do
+        expect(result.failures.first.error).to be_a(KeyError)
       end
     end
 

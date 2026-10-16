@@ -2,9 +2,9 @@ class ProgrammeSyncPageJob < ApplicationJob
   queue_as :default
 
   def perform(page = 1)
-    total_pages = ProgrammeSync.new.call(page: page)
+    result = ProgrammeSync.new.call(page: page)
 
-    enqueue_remaining_pages(total_pages) if page == 1
+    enqueue_remaining_pages(result.total_pages) if page == 1
   end
 
   private

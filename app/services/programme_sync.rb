@@ -1,4 +1,12 @@
 class ProgrammeSync
+  Failure = Data.define(:external_id, :error)
+  Result = Data.define(:total_pages, :processed_ids, :failures)
+  INVALID_RECORD_ERRORS = [
+    ActiveRecord::RecordInvalid,
+    ArgumentError,
+    KeyError
+  ].freeze
+
   def initialize(api_client: FestivalApiClient.new)
     @api_client = api_client
   end
@@ -7,12 +15,21 @@ class ProgrammeSync
     response = @api_client.fetch_screenings(page: page)
     films = {}
     venues = {}
+    processed_ids = []
+    failures = []
 
     response.fetch("screenings").each do |attributes|
       sync_screening(attributes, films: films, venues: venues)
+      processed_ids << attributes.fetch("id")
+    rescue *INVALID_RECORD_ERRORS => error
+      failures << Failure.new(external_id: attributes["id"], error: error)
     end
 
-    response.fetch("total_pages")
+    Result.new(
+      total_pages: response.fetch("total_pages"),
+      processed_ids: processed_ids,
+      failures: failures
+    )
   end
 
   private
