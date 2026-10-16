@@ -13,5 +13,10 @@ class ScreeningsController < ApplicationController
       end
       @screenings = @screenings.where(starts_at: date.all_day) if date
     end
+
+    if params[:q].present?
+      query = ActiveRecord::Base.sanitize_sql_like(params[:q].strip)
+      @screenings = @screenings.joins(:film).where("films.title ILIKE ?", "%#{query}%")
+    end
   end
 end
