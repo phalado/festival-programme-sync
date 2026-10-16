@@ -2,9 +2,10 @@ require "rails_helper"
 
 RSpec.describe ProgrammeSync do
   describe "#call" do
-    subject(:sync) { described_class.new(api_client: api_client) }
+    subject(:sync) { described_class.new(api_client: api_client, reporter: reporter) }
 
     let(:api_client) { double("FestivalApiClient") }
+    let(:reporter) { SyncReporter::Null.new }
     let(:api_response) do
       {
         "page" => 1,
@@ -44,6 +45,37 @@ RSpec.describe ProgrammeSync do
 
     it "creates the venue" do
       expect { sync.call }.to change(Venue, :count).by(1)
+    end
+
+    context "with persistent reporting" do
+      let(:sync_run) { SyncRun.create! }
+      let(:reporter) { SyncReporter.new(sync_run: sync_run) }
+
+      before { sync.call }
+
+      it "logs the created screening" do
+        expect(
+          sync_run.sync_logs.record.created.where(record_type: "Screening").count
+        ).to eq(1)
+      end
+
+      it "logs the created film" do
+        expect(
+          sync_run.sync_logs.record.created.where(record_type: "Film").count
+        ).to eq(1)
+      end
+
+      it "logs the created venue" do
+        expect(
+          sync_run.sync_logs.record.created.where(record_type: "Venue").count
+        ).to eq(1)
+      end
+
+      it "logs unchanged records on a repeated sync" do
+        sync.call
+
+        expect(sync_run.sync_logs.record.unchanged.count).to eq(3)
+      end
     end
 
     context "when a page is specified" do
@@ -96,6 +128,9 @@ RSpec.describe ProgrammeSync do
     end
 
     context "when one upstream record is invalid" do
+      let(:sync_run) { SyncRun.create! }
+      let(:reporter) { SyncReporter.new(sync_run: sync_run) }
+
       before do
         invalid_screening = api_response.fetch("screenings").first.deep_dup
         invalid_screening["id"] = "SCR-0002"
@@ -127,6 +162,14 @@ RSpec.describe ProgrammeSync do
 
       it "reports the validation error" do
         expect(result.failures.first.error).to be_a(KeyError)
+      end
+
+      it "persists the failure" do
+        result
+
+        expect(
+          sync_run.sync_logs.record.failed.where(external_id: "SCR-0002").count
+        ).to eq(1)
       end
     end
 
@@ -175,6 +218,9 @@ RSpec.describe ProgrammeSync do
     end
 
     context "when upstream records change" do
+      let(:sync_run) { SyncRun.create! }
+      let(:reporter) { SyncReporter.new(sync_run: sync_run) }
+
       let(:generation_one) do
         api_response.deep_dup.tap do |response|
           second_screening = response.fetch("screenings").first.deep_dup
@@ -260,6 +306,24 @@ RSpec.describe ProgrammeSync do
 
       it "adds a new screening" do
         expect(Screening.exists?(external_id: "SCR-0003")).to be(true)
+      end
+
+      it "logs updated screenings" do
+        expect(
+          sync_run.sync_logs.record.updated.where(record_type: "Screening").count
+        ).to be_positive
+      end
+
+      it "logs updated films" do
+        expect(
+          sync_run.sync_logs.record.updated.where(record_type: "Film").count
+        ).to be_positive
+      end
+
+      it "logs updated venues" do
+        expect(
+          sync_run.sync_logs.record.updated.where(record_type: "Venue").count
+        ).to be_positive
       end
     end
 

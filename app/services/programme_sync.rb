@@ -7,8 +7,9 @@ class ProgrammeSync
     KeyError
   ].freeze
 
-  def initialize(api_client: FestivalApiClient.new)
+  def initialize(api_client: FestivalApiClient.new, reporter: SyncReporter::Null.new)
     @api_client = api_client
+    @reporter = reporter
   end
 
   def call(page: 1)
@@ -23,6 +24,11 @@ class ProgrammeSync
       processed_ids << attributes.fetch("id")
     rescue *INVALID_RECORD_ERRORS => error
       failures << Failure.new(external_id: attributes["id"], error: error)
+      @reporter.record_failure(
+        record_type: "Screening",
+        external_id: attributes["id"].presence || "unknown",
+        error: error
+      )
     end
 
     Result.new(
@@ -56,8 +62,10 @@ class ProgrammeSync
         attributes.fetch("id"),
         screening_attributes
       )
+      action = action_for(screening, screening_attributes)
 
       screening.update!(screening_attributes)
+      report_success(screening, action)
     end
 
     films[film_external_id] = film
@@ -72,8 +80,10 @@ class ProgrammeSync
       year: attributes["year"]
     }
     film = find_or_create_by_external_id(Film, attributes.fetch("id"), film_attributes)
+    action = action_for(film, film_attributes)
 
     film.update!(film_attributes)
+    report_success(film, action)
     film
   end
 
@@ -84,9 +94,28 @@ class ProgrammeSync
       capacity: attributes["capacity"]
     }
     venue = find_or_create_by_external_id(Venue, attributes.fetch("id"), venue_attributes)
+    action = action_for(venue, venue_attributes)
 
     venue.update!(venue_attributes)
+    report_success(venue, action)
     venue
+  end
+
+  def action_for(record, attributes)
+    return :created if record.previously_new_record?
+
+    record.assign_attributes(attributes)
+    return :updated if record.changed?
+
+    :unchanged
+  end
+
+  def report_success(record, action)
+    @reporter.record_success(
+      record_type: record.class.name,
+      external_id: record.external_id,
+      action: action
+    )
   end
 
   def find_or_create_by_external_id(model, external_id, attributes)

@@ -4,6 +4,7 @@ class SyncRun < ApplicationRecord
   enum :status, {
     running: "running",
     completed: "completed",
+    completed_with_errors: "completed_with_errors",
     failed: "failed"
   }, default: :running
 
@@ -37,10 +38,27 @@ class SyncRun < ApplicationRecord
     )
   end
 
+  def created_count
+    sync_logs.record.succeeded.created.count
+  end
+
+  def updated_count
+    sync_logs.record.succeeded.updated.count
+  end
+
+  def error_count
+    sync_logs.failed.count
+  end
+
   private
 
   def complete!
-    self.status = :completed
+    if error_count.positive?
+      self.status = :completed_with_errors
+    else
+      self.status = :completed
+    end
+
     self.finished_at = Time.current
   end
 end

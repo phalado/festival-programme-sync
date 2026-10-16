@@ -33,6 +33,12 @@ RSpec.describe ProgrammeSyncPageJob, type: :job do
 
         expect(sync_run.reload.completed_pages).to eq([ 1 ])
       end
+
+      it "logs the successful job" do
+        described_class.perform_now(1, sync_run.id)
+
+        expect(sync_run.sync_logs.job.succeeded.count).to eq(1)
+      end
     end
 
     context "when processing a subsequent page" do
@@ -102,6 +108,10 @@ RSpec.describe ProgrammeSyncPageJob, type: :job do
 
         it "retries the job" do
           expect(job).to have_received(:retry_job)
+        end
+
+        it "logs the failed attempt" do
+          expect(sync_run.sync_logs.job.failed.count).to eq(1)
         end
       end
 

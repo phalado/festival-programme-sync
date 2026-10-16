@@ -10,14 +10,20 @@ class ProgrammeSyncPageJob < ApplicationJob
     end
 
   def perform(page, sync_run_id)
-    sync_run = SyncRun.find(sync_run_id)
-    return unless sync_run.running?
+    sync_run = SyncRun.find_by(id: sync_run_id)
+    return unless sync_run&.running?
 
-    result = ProgrammeSync.new.call(page: page)
+    reporter = SyncReporter.new(sync_run: sync_run)
+    job_log = reporter.start_job(page: page, attempt: executions)
+    result = ProgrammeSync.new(reporter: reporter).call(page: page)
     page_recorded = sync_run.record_page!(page, total_pages: result.total_pages)
+    reporter.finish_job(job_log)
     return unless page_recorded
 
     enqueue_remaining_pages(result.total_pages, sync_run_id) if page == 1
+  rescue StandardError => error
+    reporter&.fail_job(job_log, error) if job_log
+    raise
   end
 
   private
