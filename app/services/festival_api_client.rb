@@ -10,7 +10,13 @@ class FestivalApiClient
   private
 
   def default_connection
-    Faraday.new(url: ENV.fetch("FESTIVAL_API_URL")) do |connection|
+    Faraday.new(
+      url: ENV.fetch("FESTIVAL_API_URL"),
+      request: {
+        open_timeout: 2,
+        timeout: 10
+      }
+    ) do |connection|
       connection.response :raise_error
       connection.response :json
     end

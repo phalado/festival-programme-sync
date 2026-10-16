@@ -45,5 +45,39 @@ RSpec.describe ProgrammeSyncPageJob, type: :job do
         expect(described_class).not_to have_received(:perform_later)
       end
     end
+
+    context "when the API has a transient failure" do
+      subject(:job) { described_class.new(1) }
+
+      before do
+        allow(sync).to receive(:call).with(page: 1).and_raise(error)
+        allow(job).to receive(:retry_job)
+        job.perform_now
+      end
+
+      context "with a server error" do
+        let(:error) { Faraday::ServerError.new("Upstream unavailable") }
+
+        it "retries the job" do
+          expect(job).to have_received(:retry_job)
+        end
+      end
+
+      context "with a timeout" do
+        let(:error) { Faraday::TimeoutError.new("Upstream timed out") }
+
+        it "retries the job" do
+          expect(job).to have_received(:retry_job)
+        end
+      end
+
+      context "with a connection failure" do
+        let(:error) { Faraday::ConnectionFailed.new("Upstream unreachable") }
+
+        it "retries the job" do
+          expect(job).to have_received(:retry_job)
+        end
+      end
+    end
   end
 end

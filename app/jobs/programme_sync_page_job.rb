@@ -1,6 +1,12 @@
 class ProgrammeSyncPageJob < ApplicationJob
   queue_as :default
 
+  retry_on Faraday::ConnectionFailed,
+    Faraday::ServerError,
+    Faraday::TimeoutError,
+    wait: :polynomially_longer,
+    attempts: 5
+
   def perform(page = 1)
     result = ProgrammeSync.new.call(page: page)
 
