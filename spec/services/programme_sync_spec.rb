@@ -46,16 +46,40 @@ RSpec.describe ProgrammeSync do
       expect { sync.call }.to change(Venue, :count).by(1)
     end
 
+    context "when a page is specified" do
+      let(:api_response) do
+        {
+          "page" => 2,
+          "total_pages" => 3,
+          "screenings" => []
+        }
+      end
+
+      before do
+        allow(api_client).to receive(:fetch_screenings).with(page: 2).and_return(api_response)
+      end
+
+      it "requests that page from the API" do
+        sync.call(page: 2)
+
+        expect(api_client).to have_received(:fetch_screenings).with(page: 2)
+      end
+
+      it "returns the total number of pages" do
+        expect(sync.call(page: 2)).to eq(3)
+      end
+    end
+
     context "after syncing" do
       before { sync.call }
 
       let(:screening) { Screening.find_by!(external_id: "SCR-0001") }
 
       it "imports the screening attributes" do
-      expect(screening).to have_attributes(
-        starts_at: Time.zone.parse("2027-03-06T16:00:00Z"),
-        status: "scheduled"
-      )
+        expect(screening).to have_attributes(
+          starts_at: Time.zone.parse("2027-03-06T16:00:00Z"),
+          status: "scheduled"
+        )
       end
 
       it "imports the film attributes" do

@@ -1,14 +1,16 @@
 class ProgrammeSync
-  def initialize(api_client:)
+  def initialize(api_client: FestivalApiClient.new)
     @api_client = api_client
   end
 
-  def call
-    response = @api_client.fetch_screenings(page: 1)
+  def call(page: 1)
+    response = @api_client.fetch_screenings(page: page)
 
     response.fetch("screenings").each do |attributes|
       sync_screening(attributes)
     end
+
+    response.fetch("total_pages")
   end
 
   private
