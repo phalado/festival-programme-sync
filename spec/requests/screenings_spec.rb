@@ -47,6 +47,63 @@ RSpec.describe "Screenings", type: :request do
       end
     end
 
+    context "when filtering by date" do
+      let!(:matching_screening) do
+        create(
+          :screening,
+          film: create(:film, title: "Autumn in Trieste"),
+          starts_at: Time.zone.parse("2027-03-12 20:00:00")
+        )
+      end
+      let!(:other_screening) do
+        create(
+          :screening,
+          film: create(:film, title: "The Silent Orchard"),
+          starts_at: Time.zone.parse("2027-03-13 20:00:00")
+        )
+      end
+
+      before do
+        get screenings_path, params: { date: "2027-03-12" }
+      end
+
+      it "includes screenings on the selected date" do
+        expect(response.body).to include(matching_screening.film.title)
+      end
+
+      it "excludes screenings on another date" do
+        expect(response.body).not_to include(other_screening.film.title)
+      end
+    end
+
+    context "when filtering by venue" do
+      before do
+        get screenings_path, params: { venue_id: matching_screening.venue_id }
+      end
+
+      it "includes screenings at the selected venue" do
+        expect(response.body).to include(matching_screening.film.title)
+      end
+
+      it "excludes screenings at another venue" do
+        expect(response.body).not_to include(other_screening.film.title)
+      end
+    end
+
+    context "when the date is invalid" do
+      before do
+        get screenings_path, params: { date: "not-a-date" }
+      end
+
+      it "returns a successful response" do
+        expect(response).to have_http_status(:ok)
+      end
+
+      it "does not apply a date filter" do
+        expect(response.body).to include(other_screening.film.title)
+      end
+    end
+
     it "does not query film and venue associations per screening" do
       queries = []
       subscriber = ->(_name, _started, _finished, _id, payload) do
