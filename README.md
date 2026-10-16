@@ -122,6 +122,11 @@ distinguish created, updated and unchanged data; run-level helpers expose create
 updated and error counts. A run that finishes all pages with logged failures is
 marked `completed_with_errors`.
 
+The screenings index applies date, venue and title filters and eager loads films
+and venues, removing the inherited N+1. Its GET form targets the results Turbo
+Frame, so filtering remains server-rendered while replacing only the list. A
+small Stimulus controller submits title searches after a 300 ms debounce.
+
 The original supplied `VenueSync` matched venues by name. Since names can change
 upstream, that could attempt to create a duplicate external ID instead of updating the
 existing venue. I changed this inherited service to match by stable external ID
