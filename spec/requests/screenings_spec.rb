@@ -21,6 +21,22 @@ RSpec.describe "Screenings", type: :request do
       expect(response.body).to include('data-turbo-frame="screenings"')
     end
 
+    it "connects the debounce controller to the form" do
+      expect(response.body).to include('data-controller="debounced-submit"')
+    end
+
+    it "debounces input from the title field" do
+      expect(response.body).to include(
+        'data-action="input-&gt;debounced-submit#submit"'
+      )
+    end
+
+    it "configures the debounce delay" do
+      expect(response.body).to include(
+        'data-debounced-submit-wait-value="300"'
+      )
+    end
+
     it "wraps the results in the screenings Turbo Frame" do
       expect(response.body).to include('<turbo-frame id="screenings">')
     end
