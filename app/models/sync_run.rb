@@ -1,4 +1,6 @@
 class SyncRun < ApplicationRecord
+  has_many :sync_logs, dependent: :destroy
+
   enum :status, {
     running: "running",
     completed: "completed",

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_16_121500) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_16_123000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -39,6 +39,28 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_121500) do
     t.index ["venue_id"], name: "index_screenings_on_venue_id"
   end
 
+  create_table "sync_logs", force: :cascade do |t|
+    t.string "action"
+    t.integer "attempt"
+    t.datetime "created_at", null: false
+    t.string "error_class"
+    t.text "error_message"
+    t.string "external_id"
+    t.datetime "finished_at"
+    t.string "log_type", null: false
+    t.jsonb "metadata", default: {}, null: false
+    t.integer "page"
+    t.string "record_type"
+    t.datetime "started_at", null: false
+    t.string "status", null: false
+    t.bigint "sync_run_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["record_type", "external_id"], name: "index_sync_logs_on_record_type_and_external_id"
+    t.index ["sync_run_id", "page"], name: "index_sync_logs_on_sync_run_id_and_page"
+    t.index ["sync_run_id", "status"], name: "index_sync_logs_on_sync_run_id_and_status"
+    t.index ["sync_run_id"], name: "index_sync_logs_on_sync_run_id"
+  end
+
   create_table "sync_runs", force: :cascade do |t|
     t.integer "completed_pages", default: [], null: false, array: true
     t.datetime "created_at", null: false
@@ -62,4 +84,5 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_121500) do
 
   add_foreign_key "screenings", "films"
   add_foreign_key "screenings", "venues"
+  add_foreign_key "sync_logs", "sync_runs"
 end
