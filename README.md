@@ -93,59 +93,38 @@ A private git repo with your commits. Please don't squash.
 
 ## Implementation notes
 
-The programme sync treats upstream external IDs as the identity of films, venues
-and screenings. Each API page is processed by an independent Sidekiq job, and
-each screening is persisted in its own transaction so a later failure does not
-roll back records already committed. Unique database indexes are the final
-protection against duplicates. Films and venues repeated within a page are
-cached only for the lifetime of that page to avoid redundant database work.
-HTTP failures are allowed to reach Sidekiq so the failed page can be retried
-without rolling back pages that have already completed. Invalid individual
-records are isolated, persisted as failed `SyncLog` entries and returned as
-structured failures, allowing later records on the same page to continue. The
-HTTP client uses a two-second connection timeout and a ten-second response
-timeout, which accommodates the known six-second slow response. Connection,
-timeout and server failures retry up to five times with polynomial backoff.
-Request-level integration tests exercise the mock API's complete `generation=1`
-dataset, its `generation=2` updates and its `fail_after=8` partial-failure mode,
-including preservation of records committed by earlier successful pages.
+The sync treats upstream external IDs as the identity of films, venues and
+screenings. `sidekiq-cron` starts an hourly coordinator, which creates a
+`SyncRun`; page 1 discovers the total and fans out one Sidekiq job per page. A
+partial unique index prevents concurrent runs. Each screening is committed in
+its own transaction, unique indexes prevent duplicates, and a page-local cache
+avoids repeated film and venue queries.
 
-`sidekiq-cron` starts `ProgrammeSyncJob` at the beginning of every hour. This
-coordinator creates a `SyncRun` and enqueues page 1; the first page discovers the
-total page count and fans the remaining pages out to independent jobs. A partial
-unique index allows only one running sync, so another scheduled invocation exits
-without creating an overlapping run. Completed pages are recorded idempotently,
-and exhausting transient-error retries marks the run as failed and releases the
-slot for a future execution.
+Invalid records are isolated and logged without stopping the page. Connection,
+timeout and server failures reach Sidekiq and retry up to five times with
+polynomial backoff; the HTTP client uses two-second connection and ten-second
+response timeouts. `SyncRun` records the execution lifecycle and aggregate
+counts, while structured `SyncLog` entries record job and record status, action,
+page, attempt, external identity, timing, errors and metadata. Runs can finish as
+completed, completed with record errors, or failed. Integration tests cover both
+dataset generations and `fail_after=8`, including preservation of records
+committed before a partial failure.
 
-`SyncRun` stores the aggregate execution lifecycle and timestamps. Structured
-`SyncLog` entries support job and record events, including status, action, page,
-attempt, external identity, timing, errors and JSON metadata. Record events
-distinguish created, updated and unchanged data; run-level helpers expose created,
-updated and error counts. A run that finishes all pages with logged failures is
-marked `completed_with_errors`.
+The supplied `VenueSync` matched venues by mutable names, which could create a
+duplicate external ID after a rename. It now matches by external ID, updates
+renames and isolates invalid entries. The screenings index also had an N+1 and
+reloaded the whole page; it now eager loads associations and applies date, venue
+and title filters inside a Turbo Frame, with a 300 ms Stimulus debounce.
 
-The screenings index applies date, venue and title filters and eager loads films
-and venues, removing the inherited N+1. Its GET form targets the results Turbo
-Frame, so filtering remains server-rendered while replacing only the list. A
-small Stimulus controller submits title searches after a 300 ms debounce.
+The brief does not define the meaning of a screening missing upstream. I assume
+the local database is a replaceable copy and chose hard deletion, but the
+successful-run reconciliation that performs this deletion is not implemented
+yet. It must only run after every page succeeds, so partial runs never remove
+previously synchronized data. This policy should be reconsidered if screenings
+later own editorial or transactional history.
 
-The original supplied `VenueSync` matched venues by name. Since names can change
-upstream, that could attempt to create a duplicate external ID instead of updating the
-existing venue. I changed this inherited service to match by stable external ID
-and added a regression test for upstream renames. This was kept as a focused,
-documented correction rather than silently copying or broadly rewriting the
-inherited implementation. Invalid venue entries are now isolated and returned as
-structured failures so later entries in the same batch still run.
-
-The brief does not define what a missing upstream screening means. It could be a
-deletion, an archival event or a temporary omission. The chosen policy is to
-delete local screenings that are absent upstream because this database is a
-replaceable local copy of the source of truth. Reconciliation must run only after
-every page completes successfully; a partial API run must never trigger deletion.
-This policy should be revisited if screenings later own editorial or transactional
-history that must be retained.
-
-With more time, I would add an operational dashboard and alert delivery, define
-a retention policy for sync logs, and use an upstream snapshot/version token so
-concurrently processed pages are guaranteed to represent the same dataset.
+Known limitations are the missing reconciliation, the no-op alert adapter, and
+the absence of an upstream snapshot token guaranteeing that concurrently
+processed pages belong to the same dataset. With more time, I would implement
+that reconciliation, connect alerts to an operational channel, add a monitoring
+dashboard and define a retention policy for sync logs.
