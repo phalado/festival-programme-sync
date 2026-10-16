@@ -17,6 +17,14 @@ RSpec.describe "Screenings", type: :request do
       expect(response).to have_http_status(:ok)
     end
 
+    it "targets the screenings Turbo Frame" do
+      expect(response.body).to include('data-turbo-frame="screenings"')
+    end
+
+    it "wraps the results in the screenings Turbo Frame" do
+      expect(response.body).to include('<turbo-frame id="screenings">')
+    end
+
     it "includes screenings with a matching film title" do
       expect(response.body).to include(matching_screening.film.title)
     end
