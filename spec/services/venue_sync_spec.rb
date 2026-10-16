@@ -55,5 +55,55 @@ RSpec.describe VenueSync do
         )
       end
     end
+
+    context "when one venue is invalid" do
+      let(:payload) do
+        [
+          {
+            "id" => "VEN-01",
+            "name" => "Grand Cinema",
+            "address" => "12 Main Street",
+            "capacity" => 320
+          },
+          {
+            "id" => "VEN-02",
+            "address" => "Missing name",
+            "capacity" => 100
+          },
+          {
+            "id" => "VEN-03",
+            "name" => "Riverside Cinema",
+            "address" => "4 Quay Road",
+            "capacity" => 180
+          }
+        ]
+      end
+
+      let(:result) { sync.call }
+
+      it "does not persist the invalid venue" do
+        result
+
+        expect(Venue.exists?(external_id: "VEN-02")).to be(false)
+      end
+
+      it "continues processing later venues" do
+        result
+
+        expect(Venue.exists?(external_id: "VEN-03")).to be(true)
+      end
+
+      it "reports the failed external ID" do
+        expect(result.failures.map(&:external_id)).to eq([ "VEN-02" ])
+      end
+
+      it "reports the error" do
+        expect(result.failures.first.error).to be_a(KeyError)
+      end
+
+      it "reports successfully processed venues" do
+        expect(result.processed_ids).to eq([ "VEN-01", "VEN-03" ])
+      end
+    end
   end
 end
