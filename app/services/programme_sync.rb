@@ -5,9 +5,11 @@ class ProgrammeSync
 
   def call(page: 1)
     response = @api_client.fetch_screenings(page: page)
+    films = {}
+    venues = {}
 
     response.fetch("screenings").each do |attributes|
-      sync_screening(attributes)
+      sync_screening(attributes, films: films, venues: venues)
     end
 
     response.fetch("total_pages")
@@ -15,10 +17,17 @@ class ProgrammeSync
 
   private
 
-  def sync_screening(attributes)
+  def sync_screening(attributes, films:, venues:)
+    film_attributes = attributes.fetch("film")
+    venue_attributes = attributes.fetch("venue")
+    film_external_id = film_attributes.fetch("id")
+    venue_external_id = venue_attributes.fetch("id")
+    film = nil
+    venue = nil
+
     Screening.transaction do
-      film = sync_film(attributes.fetch("film"))
-      venue = sync_venue(attributes.fetch("venue"))
+      film = films[film_external_id] || sync_film(film_attributes)
+      venue = venues[venue_external_id] || sync_venue(venue_attributes)
       screening_attributes = {
         film: film,
         venue: venue,
@@ -33,6 +42,9 @@ class ProgrammeSync
 
       screening.update!(screening_attributes)
     end
+
+    films[film_external_id] = film
+    venues[venue_external_id] = venue
   end
 
   def sync_film(attributes)
