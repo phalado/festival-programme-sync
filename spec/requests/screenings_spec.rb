@@ -38,5 +38,22 @@ RSpec.describe "Screenings", type: :request do
         expect(response.body).not_to include(other_screening.film.title)
       end
     end
+
+    it "does not query film and venue associations per screening" do
+      queries = []
+      subscriber = ->(_name, _started, _finished, _id, payload) do
+        queries << payload.fetch(:sql)
+      end
+
+      ActiveSupport::Notifications.subscribed(subscriber, "sql.active_record") do
+        get screenings_path
+      end
+
+      per_record_queries = queries.grep(
+        /WHERE "(?:films|venues)"."id" =/
+      )
+
+      expect(per_record_queries).to be_empty
+    end
   end
 end

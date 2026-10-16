@@ -2,7 +2,7 @@ class ScreeningsController < ApplicationController
   def index
     @venues = Venue.order(:name)
 
-    @screenings = Screening.order(:starts_at)
+    @screenings = Screening.includes(:film, :venue).order(:starts_at)
     @screenings = @screenings.where(venue_id: params[:venue_id]) if params[:venue_id].present?
 
     if params[:date].present?
